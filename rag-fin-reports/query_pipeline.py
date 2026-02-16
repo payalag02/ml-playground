@@ -1,40 +1,56 @@
 import re
 from retriever import search_chunks
 from llm import build_context, generate_answer
+import re
+
+# Maintain a known company list (expand as you add reports)
+KNOWN_COMPANIES = [
+    "Infosys",
+    "TCS",
+    "Wipro",
+    "HCL",
+    "Tech Mahindra"
+]
 
 
-# Simple query analyzer
 def detect_filters(question):
 
-    company = None
+    question_lower = question.lower()
+
+    companies = []
     year = None
 
-    # Example company detection (extend later)
-    if "infosys" in question.lower():
-        company = "Infosys"
+    # Detect companies
+    for c in KNOWN_COMPANIES:
+        if c.lower() in question_lower:
+            companies.append(c)
 
-    # Detect fiscal year
+    # Detect year
     year_match = re.search(r"20\d{2}", question)
     if year_match:
         year = int(year_match.group())
 
-    return company, year
+    return companies, year
+
+
+# Simple query analyzer
 
 
 def run_query(question):
 
     print("Analyzing query...")
-    company, year = detect_filters(question)
+    companies, year = detect_filters(question)
 
-    print(f"Detected filters → company={company}, year={year}")
+    print(f"Detected filters → company={companies}, year={year}")
 
     print("Retrieving context...")
     chunks = search_chunks(
         question,
-        company=company,
+        companies=companies,
         year=year
     )
 
+    print(f"\n--- Retrieved {len(chunks)} chunks ---")
     context = build_context(chunks)
 
     print("Generating answer...")
@@ -45,7 +61,8 @@ def run_query(question):
 
 if __name__ == "__main__":
 
-    q = "What are future prospects for Infosys"
+    q = "Compare operational expenses of Wipro with Infosys ended March 31, 2024:?"
+    # q = "Summary of acquisition of Wipro compared to Infosys ended March 31, 2024:?"
 
     result = run_query(q)
 
