@@ -1,7 +1,6 @@
 import re
 from retriever import search_chunks
 from llm import build_context, generate_answer
-import re
 
 # Maintain a known company list (expand as you add reports)
 KNOWN_COMPANIES = [
@@ -61,7 +60,9 @@ def run_query(question):
 
 if __name__ == "__main__":
 
-    q = "Compare operational expenses of Wipro with Infosys ended March 31, 2024:?"
+    q = "Which is more likely to grow among Wipro and Infosys based on reports from 2024?"
+
+    # q = "Compare operational expenses of Wipro with Infosys ended March 31, 2024:?"
     # q = "Summary of acquisition of Wipro compared to Infosys ended March 31, 2024:?"
 
     result = run_query(q)
