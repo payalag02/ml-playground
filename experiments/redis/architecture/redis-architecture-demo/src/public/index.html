@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Redis Architecture Demo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; padding: 2rem; }
+    h1 { font-size: 1.5rem; margin-bottom: 1.5rem; color: #38bdf8; }
+    h2 { font-size: 1.1rem; margin-bottom: 0.75rem; color: #94a3b8; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; max-width: 900px; }
+    .card { background: #1e293b; border-radius: 8px; padding: 1.25rem; border: 1px solid #334155; }
+    label { display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.25rem; }
+    input { width: 100%; padding: 0.5rem; border-radius: 4px; border: 1px solid #475569; background: #0f172a; color: #e2e8f0; margin-bottom: 0.75rem; font-size: 0.9rem; }
+    button { padding: 0.5rem 1rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem; font-weight: 600; }
+    .btn-blue { background: #3b82f6; color: white; }
+    .btn-green { background: #22c55e; color: white; }
+    .btn-orange { background: #f97316; color: white; }
+    .btn-red { background: #ef4444; color: white; }
+    button:hover { opacity: 0.9; }
+    .response { margin-top: 1rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px; padding: 0.75rem; font-family: monospace; font-size: 0.8rem; white-space: pre-wrap; max-height: 200px; overflow-y: auto; color: #a5f3fc; }
+    .log { margin-top: 1.5rem; max-width: 900px; }
+    .log-entry { padding: 0.25rem 0; border-bottom: 1px solid #1e293b; font-family: monospace; font-size: 0.8rem; }
+    .log-entry .method { font-weight: bold; }
+    .log-entry .method.POST { color: #22c55e; }
+    .log-entry .method.GET { color: #3b82f6; }
+    .log-entry .time { color: #64748b; }
+    .buttons { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+  <h1>Redis Architecture Demo</h1>
+
+  <div class="grid">
+    <!-- Create User -->
+    <div class="card">
+      <h2>Create User</h2>
+      <label>Name</label>
+      <input type="text" id="userName" placeholder="Alice" />
+      <label>Email</label>
+      <input type="email" id="userEmail" placeholder="alice@test.com" />
+      <button class="btn-green" onclick="createUser()">Create User</button>
+      <div class="response" id="createRes"></div>
+    </div>
+
+    <!-- List Users -->
+    <div class="card">
+      <h2>Users</h2>
+      <button class="btn-blue" onclick="listUsers()">Fetch All Users</button>
+      <div class="response" id="listRes"></div>
+    </div>
+
+    <!-- Track Metric -->
+    <div class="card">
+      <h2>Track Metric Event</h2>
+      <label>Event Name</label>
+      <input type="text" id="eventName" placeholder="page_view" />
+      <button class="btn-orange" onclick="trackEvent()">Track Event</button>
+      <div class="buttons" style="margin-top: 0.75rem;">
+        <button class="btn-blue" onclick="getRealtimeCounts()">Realtime Counts</button>
+        <button class="btn-blue" onclick="getPersistedCounts()">Persisted Counts</button>
+      </div>
+      <div class="response" id="metricsRes"></div>
+    </div>
+
+    <!-- Rate Limit Test -->
+    <div class="card">
+      <h2>Rate Limiter Test</h2>
+      <p style="font-size:0.85rem; color:#94a3b8; margin-bottom:0.75rem;">Sends 25 rapid requests to /health. After 20, you'll see 429 errors.</p>
+      <button class="btn-red" onclick="testRateLimit()">Fire 25 Requests</button>
+      <div class="response" id="rateRes"></div>
+    </div>
+  </div>
+
+  <!-- Request Log -->
+  <div class="log">
+    <h2 style="margin-top:1.5rem;">Request Log</h2>
+    <div id="requestLog"></div>
+  </div>
+
+  <script>
+    function log(method, url, status, body) {
+      const el = document.getElementById("requestLog");
+      const time = new Date().toLocaleTimeString();
+      const entry = document.createElement("div");
+      entry.className = "log-entry";
+      entry.innerHTML = `<span class="time">${time}</span> <span class="method ${method}">${method}</span> ${url} → <strong>${status}</strong> ${typeof body === 'string' ? body.slice(0, 80) : ''}`;
+      el.prepend(entry);
+    }
+
+    async function api(method, url, body, resultEl) {
+      const opts = { method, headers: { "Content-Type": "application/json" } };
+      if (body) opts.body = JSON.stringify(body);
+      const res = await fetch(url, opts);
+      const data = await res.json();
+      const pretty = JSON.stringify(data, null, 2);
+      if (resultEl) document.getElementById(resultEl).textContent = pretty;
+      log(method, url, res.status, JSON.stringify(data));
+      return { status: res.status, data };
+    }
+
+    function createUser() {
+      const name = document.getElementById("userName").value;
+      const email = document.getElementById("userEmail").value;
+      if (!name || !email) return alert("Fill in both fields");
+      api("POST", "/api/users", { name, email }, "createRes");
+    }
+
+    function listUsers() {
+      api("GET", "/api/users", null, "listRes");
+    }
+
+    function trackEvent() {
+      const event = document.getElementById("eventName").value;
+      if (!event) return alert("Enter an event name");
+      api("POST", "/api/metrics/track", { event }, "metricsRes");
+    }
+
+    function getRealtimeCounts() {
+      api("GET", "/api/metrics/realtime", null, "metricsRes");
+    }
+
+    function getPersistedCounts() {
+      api("GET", "/api/metrics/persisted", null, "metricsRes");
+    }
+
+    async function testRateLimit() {
+      const el = document.getElementById("rateRes");
+      el.textContent = "Firing 25 requests...\n";
+      for (let i = 1; i <= 25; i++) {
+        const res = await fetch("/health");
+        const status = res.status;
+        const remaining = res.headers.get("X-RateLimit-Remaining");
+        el.textContent += `#${i} → ${status} (remaining: ${remaining})\n`;
+        log("GET", "/health", status, `remaining: ${remaining}`);
+      }
+    }
+  </script>
+</body>
+</html>
